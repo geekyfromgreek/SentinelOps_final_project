@@ -1,6 +1,3 @@
-Absolutely. For your GitHub README, we can make it reflect the **actual workflow you followed**, the **models/metrics**, and the overall SentinelOps architecture without making it unnecessarily huge.
-
-````markdown
 # SentinelOps AI
 
 An AI-powered predictive maintenance system designed to detect potential machine failures, analyze maintenance logs, identify equipment issues, and provide actionable maintenance insights.
