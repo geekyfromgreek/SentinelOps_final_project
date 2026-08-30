@@ -12,11 +12,11 @@ import json
 from datetime import datetime, timezone
 
 MODEL_PATHS = {
-    "ml_model": "final_xgboost_model.pkl",
-    "nlp_tfidf": "nlp_tfidf_vectorizer.pkl",
-    "nlp_issue_model": "nlp_issue_model.pkl",
-    "nlp_component_model": "nlp_component_model.pkl",
-    "cnn_model": "neu_defect_cnn.keras",  # confirm exact filename/casing before running
+    "ml_model": "models/final_xgboost_model.pkl",
+    "nlp_tfidf": "models/nlp_tfidf_vectorizer.pkl",
+    "nlp_issue_model": "models/nlp_issue_model.pkl",
+    "nlp_component_model": "models/nlp_component_model.pkl",
+    "cnn_model": "models/neu_defect_cnn.keras",
 }
 
 # Must match the exact column order the ML model was trained on
@@ -96,22 +96,29 @@ RISK_ORDER = {"Low": 0, "Medium": 1, "High": 2, "Critical": 3}
 _models = {}
 
 
+def _load_obj(path):
+    try:
+        import joblib
+        return joblib.load(path)
+    except Exception:
+        with open(path, "rb") as f:
+            return pickle.load(f)
+
+
 def load_models():
     """Load all saved models once. Call this at app/dashboard startup."""
-    if _models:
-        return _models
+    if "ml_model" not in _models:
+        _models["ml_model"] = _load_obj(MODEL_PATHS["ml_model"])
+    if "nlp_tfidf" not in _models:
+        _models["nlp_tfidf"] = _load_obj(MODEL_PATHS["nlp_tfidf"])
+    if "nlp_issue_model" not in _models:
+        _models["nlp_issue_model"] = _load_obj(MODEL_PATHS["nlp_issue_model"])
+    if "nlp_component_model" not in _models:
+        _models["nlp_component_model"] = _load_obj(MODEL_PATHS["nlp_component_model"])
 
-    with open(MODEL_PATHS["ml_model"], "rb") as f:
-        _models["ml_model"] = pickle.load(f)
-    with open(MODEL_PATHS["nlp_tfidf"], "rb") as f:
-        _models["nlp_tfidf"] = pickle.load(f)
-    with open(MODEL_PATHS["nlp_issue_model"], "rb") as f:
-        _models["nlp_issue_model"] = pickle.load(f)
-    with open(MODEL_PATHS["nlp_component_model"], "rb") as f:
-        _models["nlp_component_model"] = pickle.load(f)
-
-    from tensorflow.keras.models import load_model
-    _models["cnn_model"] = load_model(MODEL_PATHS["cnn_model"])
+    if "cnn_model" not in _models:
+        from tensorflow.keras.models import load_model
+        _models["cnn_model"] = load_model(MODEL_PATHS["cnn_model"])
 
     return _models
 
@@ -119,8 +126,14 @@ def load_models():
 def predict_ml(sensor_readings: dict) -> dict:
     """sensor_readings: dict matching ML_FEATURE_ORDER keys."""
     models = load_models()
-    row = [[sensor_readings[f] for f in ML_FEATURE_ORDER]]
-    proba = models["ml_model"].predict_proba(row)[0][1]
+    row = [sensor_readings[f] for f in ML_FEATURE_ORDER]
+    if len(row) == 5:
+        # XGBoost was trained with Type_L and Type_M one-hot encoded columns
+        type_l = sensor_readings.get("Type_L", 0)
+        type_m = sensor_readings.get("Type_M", 0)
+        row.extend([type_l, type_m])
+
+    proba = models["ml_model"].predict_proba([row])[0][1]
     prediction = bool(proba >= FAILURE_PROBABILITY_THRESHOLD)
     return {"failure_probability": round(float(proba), 4), "predicted_failure": prediction}
 

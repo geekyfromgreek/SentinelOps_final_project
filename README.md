@@ -1,255 +1,194 @@
 # SentinelOps AI
 
-An AI-powered predictive maintenance system designed to detect potential machine failures, analyze maintenance logs, identify equipment issues, and provide actionable maintenance insights.
+An AI-powered industrial predictive maintenance system designed to monitor machine health, analyze maintenance logs, classify surface defects from equipment imagery, and generate prioritized, actionable maintenance recommendations.
 
-## Project Workflow
+---
 
-```text
-Dataset
-   ↓
-Data Cleaning & Preprocessing
-   ↓
-Exploratory Data Analysis (EDA)
-   ├── Univariate Analysis
-   ├── Categorical Analysis
-   ├── Outlier Analysis
-   └── Multivariate Analysis
-   ↓
-Feature Engineering
-   ├── Remove Identifiers
-   ├── Remove Failure-Type Leakage Features
-   └── Encode Categorical Features
-   ↓
-Machine Learning
-   ├── Train Multiple Models
-   ├── Model Comparison
-   ├── Hyperparameter Tuning
-   └── Final Model Selection
-   ↓
-Model Evaluation
-   ├── Accuracy
-   ├── Precision
-   ├── Recall
-   ├── F1-Score
-   └── Confusion Matrix
-   ↓
-Saved ML Model
-   ↓
-Prediction
-   ↓
-NLP Maintenance Log Analysis
-   ↓
-Decision & Recommendation Engine
-   ↓
-Dashboard
-````
-
-## System Architecture
+## 🏗️ System Architecture
 
 ```text
-                    ┌──────────────────┐
-                    │   Sensor Data    │
-                    └────────┬─────────┘
-                             ↓
-                    ┌──────────────────┐
-                    │   ML Prediction │
-                    └────────┬─────────┘
-                             ↓
-                    Failure Probability
-                             │
-                             │
-┌──────────────────┐         │         ┌──────────────────┐
-│ Maintenance Logs │ ──→ NLP Module     │ Equipment Images │
-└──────────────────┘         │         └────────┬─────────┘
-                             │                  ↓
-                             │             CNN Module
-                             │                  │
-                             └────────┬─────────┘
-                                      ↓
-                           Decision & Recommendation
-                                      ↓
-                                  Dashboard
+                     ┌────────────────────────┐
+                     │  Sensor Telemetry Data │
+                     └───────────┬────────────┘
+                                 ↓
+                     ┌────────────────────────┐
+                     │   ML Prediction Model  │ (Tuned XGBoost)
+                     └───────────┬────────────┘
+                                 ↓
+                        Failure Probability
+                                 │
+ ┌──────────────────────┐        │        ┌────────────────────────┐
+ │   Maintenance Logs   │        │        │ Equipment Surface Img  │
+ └──────────┬───────────┘        │        └───────────┬────────────┘
+            ↓                    │                    ↓
+ ┌──────────────────────┐        │        ┌────────────────────────┐
+ │   NLP Entity Model   │        │        │   CNN Defect Model     │
+ └──────────┬───────────┘        │        └───────────┬────────────┘
+            │ (Component, Issue, │                    │ (Defect Type,
+            │  Rule Severity)    │                    │  Confidence)
+            └───────────┐        │        ┌───────────┘
+                        ↓        ↓        ↓
+                 ┌────────────────────────────────┐
+                 │  Decision Engine Integration   │
+                 │    (build_recommendation)      │
+                 └───────────────┬────────────────┘
+                                 ↓
+                 ┌────────────────────────────────┐
+                 │  Streamlit Frontend Dashboard  │
+                 └────────────────────────────────┘
 ```
 
-## Machine Learning
+---
 
-The ML module predicts whether a machine is likely to experience failure using sensor measurements.
+## 📦 Core Intelligence Modules
 
-### Input Features
+### 1. Machine Learning — Sensor Failure Prediction
+- **Dataset:** AI4I 2020 Predictive Maintenance Dataset (10,000 observations, 3.39% class imbalance).
+- **Features:** Air temperature [K], Process temperature [K], Rotational speed [rpm], Torque [Nm], Tool wear [min], Machine Type.
+- **Selected Model:** **Tuned XGBoost** (`final_xgboost_model.pkl`).
+- **Performance:**
+  - **Accuracy:** 98.55%
+  - **Precision:** 83.33%
+  - **Recall:** 65.57% (detected 40 of 61 actual test failures)
+  - **F1-Score:** **73.39%** (highest across all evaluated algorithms)
+- **Confusion Matrix:** True Negatives: 1931 | False Positives: 8 | False Negatives: 21 | True Positives: 40.
 
-* Air Temperature
-* Process Temperature
-* Rotational Speed
-* Torque
-* Tool Wear
-* Machine Type
+### 2. Natural Language Processing — Log Analysis
+- **Pipeline:** TF-IDF Vectorization + Logistic Regression.
+- **Models:**
+  - `nlp_component_model.pkl`: Classifies component (motor, pump, bearing, valve, etc.).
+  - `nlp_issue_model.pkl`: Classifies mechanical/electrical issue (abnormal current draw, rising temp, vibration, etc.).
+- **Severity Rule Engine:** Implemented via `classify_severity()` in `decision_engine.py` using keyword hierarchy and component criticality policies rather than uncalibrated confidence scores.
 
-### Target
+### 3. Computer Vision — Surface Defect Inspection
+- **Dataset:** NEU Surface Defect Database.
+- **Architecture:** Custom Sequential CNN (Conv2D + MaxPooling + Dense) with built-in `Rescaling(1./255)`.
+- **Target Classes (6):** `crazing`, `inclusion`, `patches`, `pitted_surface`, `rolled-in_scale`, `scratches`.
+- **Validation Accuracy:** **87.78%** | **Validation Loss:** **0.2531** | **Macro F1:** **0.88**.
+- **Action Policy:** Only generates defect maintenance actions when model confidence meets or exceeds `CNN_CONFIDENCE_THRESHOLD = 0.60`.
 
-`Machine failure`
+### 4. Decision & Recommendation Engine
+- **Module:** `decision_engine.py`
+- **Core Function:** `build_recommendation(machine_id, ml_out, nlp_out, cnn_out)`
+- **Key Logic:**
+  - Aggregates multi-modal intelligence into an overall risk tier (`Low`, `Medium`, `High`, `Critical`).
+  - Tracks which AI modules contributed (`triggered_by`).
+  - Generates a full checklist of prescribed operational actions without discarding lower-priority alerts.
 
-* `0` → No Failure
-* `1` → Failure
+---
 
-### Models Trained
+## 💻 Streamlit Frontend Dashboard
 
-* Logistic Regression
-* Decision Tree
-* Random Forest
-* K-Nearest Neighbors (KNN)
-* Support Vector Machine (SVM)
-* XGBoost
+The frontend (`app.py`) is styled using the **Stitch / Material 3 Design System** (`Inter` typography, `#0058BC` primary palette, `#FAF9FE` canvas, `16px` rounded cards, and Google Material Symbols Outlined).
 
-### Evaluation Metrics
+### Dashboard Pages:
+1. **Fleet Overview:** KPI metrics (Total Units, Risk Counts, Active Alerts), interactive status table with demo data, and priority alert feeds.
+2. **Machine Analysis:** Telemetry input form connected live to `predict_ml()`, displaying failure probability bar and risk implications.
+3. **Log Analysis:** Unstructured log text analyzer with quick-fill presets, extracting components, issues, and rule-based severity.
+4. **Visual Inspection:** Image uploader connected to `predict_cnn()`, featuring confidence meter and defect action prescriptions.
+5. **Unified Recommendations:** Multi-modal case generator synthesizing ML + NLP + CNN inputs into unified decision reports with action checklists.
+6. **Model Performance:** Comprehensive validation benchmark reports, per-class metrics, and confusion matrices.
 
-The models were evaluated using:
+---
 
-* Accuracy
-* Precision
-* Recall
-* F1-Score
-* Confusion Matrix
-
-Because machine failure is highly imbalanced, with only **339 failures out of 10,000 observations (3.39%)**, recall and F1-score were given particular importance.
-
-### Model Comparison
-
-| Model               |   Accuracy |  Precision |     Recall |   F1-Score |
-| ------------------- | ---------: | ---------: | ---------: | ---------: |
-| Logistic Regression |     97.40% |     66.67% |     29.51% |     40.91% |
-| Decision Tree       |     97.90% |     63.01% |     75.41% |     68.66% |
-| Random Forest       |     98.45% |     87.50% |     57.38% |     69.31% |
-| KNN                 |     97.05% |     57.14% |     13.11% |     21.33% |
-| SVM                 |     97.00% |    100.00% |      1.64% |      3.23% |
-| XGBoost             |     98.35% |     76.92% |     65.57% |     70.80% |
-| Tuned Decision Tree |     98.30% |     72.13% |     72.13% |     72.13% |
-| Tuned Random Forest |     98.45% |     87.50% |     57.38% |     69.31% |
-| **Tuned XGBoost**   | **98.55%** | **83.33%** | **65.57%** | **73.39%** |
-
-### Final Model
-
-**Tuned XGBoost** was selected based on its overall performance and highest F1-score.
-
-Final test performance:
-
-* **Accuracy:** 98.55%
-* **Precision:** 83.33%
-* **Recall:** 65.57%
-* **F1-Score:** 73.39%
-
-The final model was exported as:
-
-`final_xgboost_model.pkl`
-
-## Final Model Confusion Matrix
-
-The tuned XGBoost model produced:
-
-|                       | Predicted No Failure | Predicted Failure |
-| --------------------- | -------------------: | ----------------: |
-| **Actual No Failure** |                 1931 |                 8 |
-| **Actual Failure**    |                   21 |                40 |
-
-* True Negatives: **1931**
-* False Positives: **8**
-* False Negatives: **21**
-* True Positives: **40**
-
-The model detected **40 of 61 actual failures**, resulting in a recall of **65.57%**.
-
-## NLP Module
-
-The NLP module analyzes maintenance logs and extracts useful maintenance information.
-
-### NLP Tasks
-
-* Maintenance log preprocessing
-* Tokenization
-* POS tagging
-* Named Entity Recognition
-* Issue extraction
-* Component extraction
-* Severity extraction
-
-### Example
-
-**Input:**
-
-> Machine is showing excessive vibration and the bearing needs replacement.
-
-**Output:**
-
-```text
-Issue: Excessive vibration
-Component: Bearing
-Severity: High
-```
-
-The NLP module uses **synthetic maintenance logs** as specified in the project requirements.
-
-## Feature Engineering
-
-The following transformations were performed:
-
-* Removed `UDI` and `Product ID` because they are identifiers.
-* Removed `TWF`, `HDF`, `PWF`, `OSF`, and `RNF` from the main prediction features to avoid target leakage.
-* Encoded the categorical `Type` feature using one-hot encoding.
-* Retained identified outliers because they may represent valid machine operating conditions.
-
-## Project Structure
+## 📁 Repository Structure
 
 ```text
 SentinelOps/
-├── data/
-│   ├── raw/
-│   └── processed/
-├── notebooks/
-│   ├── 01_eda.ipynb
-│   ├── 02_feature_engineering.ipynb
-│   ├── 03_model_training.ipynb
-│   └── 04_nlp.ipynb
-├── models/
-│   └── final_xgboost_model.pkl
-├── src/
-├── dashboard/
-└── README.md
+├── .streamlit/
+│   └── config.toml          # Light theme config (Primary #0058BC, Canvas #FAF9FE)
+├── data/                    # Processed datasets (AI4I 2020 & Maintenance logs)
+│   ├── ai4i2020.csv
+│   ├── feature_engineered_data.csv
+│   └── sentinelops_nlp_maintenance_logs.csv
+├── models/                  # Trained serialized model artifacts
+│   ├── final_xgboost_model.pkl
+│   ├── neu_defect_cnn.keras
+│   ├── nlp_component_model.pkl
+│   ├── nlp_issue_model.pkl
+│   └── nlp_tfidf_vectorizer.pkl
+├── Notebooks/               # Research & training notebooks
+│   ├── sentinelops-EDA.ipynb
+│   ├── sentinelops-feature-engineering.ipynb
+│   ├── sentinelops-model-training.ipynb
+│   ├── setinelops-nlp.ipynb
+│   ├── sentinelops-cnn.ipynb
+│   └── sentinelops-prediction.ipynb
+├── app.py                   # Streamlit frontend dashboard (6 pages)
+├── decision_engine.py       # Decision & Recommendation Engine
+├── requirements.txt         # Project dependencies
+└── README.md                # Project documentation
 ```
 
-## Tech Stack
+---
 
-* Python
-* Pandas
-* NumPy
-* Matplotlib
-* Scikit-learn
-* XGBoost
-* NLTK
-* spaCy
-* Streamlit
+## 🚀 Getting Started
 
-## Current Project Status
+### 1. Prerequisites
+- Python 3.10, 3.11, or 3.12 recommended.
 
-* [x] Data Cleaning
-* [x] Exploratory Data Analysis
-* [x] Univariate Analysis
-* [x] Outlier Analysis
-* [x] Multivariate Analysis
-* [x] Feature Engineering
-* [x] Categorical Encoding
-* [x] Multiple ML Models
-* [x] Model Comparison
-* [x] Hyperparameter Tuning
-* [x] Model Evaluation
-* [x] Final Model Selection
-* [x] Model Export
-* [x] ML Prediction Testing
-* [x] NLP Module
-* [x] Decision & Recommendation Engine
-* [ ] Dashboard
-* [ ] Full System Integration
+### 2. Installation
+```bash
+# Clone repository
+git clone https://github.com/geekyfromgreek/SentinelOps_final_project.git
+cd SentinelOps
 
+# Create and activate virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install required dependencies
+pip install -r requirements.txt
 ```
 
-One correction from the earlier README: **your Tuned XGBoost F1 of 73.39% is the highest among the models you tested, but Tuned Decision Tree has the highest recall at 72.13%.** The README above preserves that distinction rather than claiming XGBoost is best on every metric.
+### 3. Launch Dashboard
+```bash
+streamlit run app.py
 ```
+Open your browser at **`http://localhost:8501`**.
+
+---
+
+## ✅ Current Project Status
+
+- [x] Exploratory Data Analysis & Preprocessing
+- [x] Feature Engineering & Leakage Removal
+- [x] Multi-Model Benchmarking & Hyperparameter Tuning
+- [x] Final ML Model Export (Tuned XGBoost)
+- [x] NLP Log Analysis Pipeline (TF-IDF + Logistic Regression)
+- [x] Rule-Based Severity Classification Engine
+- [x] CNN Visual Surface Defect Classifier (NEU Dataset)
+- [x] Decision & Recommendation Engine Integration
+- [x] Streamlit Frontend Dashboard (6 Multi-Modal Pages)
+- [x] Material 3 / Stitch Design System Implementation
+- [x] Full System Testing & Verification
+
+---
+
+## 🔮 Future Scope & Production Roadmap
+
+To scale SentinelOps AI from an MVP prototype into an **end-to-end enterprise production system**, the following architectural and data improvements are planned:
+
+### 1. Advanced Data Acquisition & Quality
+- **High-Frequency Sensor Streams:** Ingest continuous high-frequency time-series telemetry (vibration acceleration, acoustic emissions, and motor current signature analysis) rather than aggregated tabular summaries.
+- **Real-World Maintenance Logs:** Expand beyond synthetic log datasets by integrating authentic ERP/CMMS shift logs (e.g., SAP PM, IBM Maximo) to train deep NLP transformers (BERT / RoBERTa / LLM-based extractors).
+- **Multi-Modal Visual Data:** Collect high-resolution, multi-angle industrial surface imagery across varied lighting conditions and diverse alloy/metal materials.
+
+### 2. High-Performance FastAPI Microservices
+- **Decoupled API Backend:** Transition model inference logic from the frontend runtime into asynchronous **FastAPI** REST / gRPC microservices:
+  - `/api/v1/predict/sensor` — High-throughput streaming sensor evaluation.
+  - `/api/v1/predict/log` — Asynchronous NLP text entity and issue extraction.
+  - `/api/v1/predict/visual` — GPU-accelerated batch image defect classification.
+  - `/api/v1/recommendation` — Unified decision engine orchestration endpoint.
+- **Message Queues & Streaming:** Implement **Apache Kafka** or **RabbitMQ** with **Celery/Redis** workers to process massive IoT telemetry streams asynchronously without blocking.
+
+### 3. Containerization & Kubernetes Orchestration (Docker & K8s)
+- **Dockerization:** Multi-stage Docker container builds for lightweight, reproducible, and secure container images across the API gateway, model inference services, and frontend dashboard.
+- **Kubernetes (K8s) Cluster Deployment:**
+  - **Horizontal Pod Autoscaling (HPA):** Dynamically scale inference pods up or down based on CPU/GPU utilization and telemetry ingestion traffic.
+  - **Zero-Downtime Rolling Updates:** Deploy updated model weights and features seamlessly without service interruption.
+  - **Resilience & Health Probing:** Automated liveness and readiness probes ensuring self-healing and high availability (99.99% uptime).
+
+### 4. End-to-End MLOps Pipeline
+- Automated model retraining, data versioning (DVC), experiment tracking (**MLflow** / **Weights & Biases**), and model drift detection for continuous deployment and performance monitoring.
 
