@@ -243,8 +243,8 @@ SentinelOps/
 * [x] Final Model Selection
 * [x] Model Export
 * [x] ML Prediction Testing
-* [ ] NLP Module
-* [ ] Decision & Recommendation Engine
+* [x] NLP Module
+* [x] Decision & Recommendation Engine
 * [ ] Dashboard
 * [ ] Full System Integration
 
